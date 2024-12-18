@@ -39,6 +39,9 @@
 		"typescript": "5.3.3",
 		"url": "^0.11.0"
 	},
+	"@parcel/resolver-default": {
+		"packageExports": true
+	},
 	"config": {
 		"commitizen": {
 			"path": "node_modules/cz-git"
