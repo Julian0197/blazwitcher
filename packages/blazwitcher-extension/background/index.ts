@@ -32,6 +32,7 @@ const appendContextMenus = () => {
 }
 
 async function main() {
+	console.log(111)
 	weakUpWindowIfActiveByUser()
 	appendContextMenus()
 
