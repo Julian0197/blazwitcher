@@ -13,6 +13,7 @@ export * from './windowAtom'
 export const themeAtom = atomWithStorage<'dark' | 'light' | 'system'>(PAGE_STORAGE_THEME_COLOR, 'system')
 export const activeItemAtom = atomWithReset<ListItemType | null>(null)
 export const originalListAtom = atomWithReset<ListItemType[]>([])
+export const windowDataListAtom = atomWithReset<any[]>([])
 export const compositionAtom = atomWithReset<boolean>(false)
 export const hitPluginAtom = atomWithReset<CommandPlugin | null>(null)
 export const searchValueAtom = atomWithReset<{ value: string }>({ value: '' })
