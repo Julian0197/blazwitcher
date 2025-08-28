@@ -113,21 +113,23 @@ export default function Footer() {
 			<FooterContainer onMouseDown={handleMouseDown}>
 				<LeftIcon />
 				<RightContainer>
-					<TestButton 
-						onClick={handleTestClick} 
-						disabled={isProcessing}
-					>
-						{isProcessing ? '处理中...' : 'AI标签分类'}
-					</TestButton>
+					{isProgressVisible ? (
+						<TabGroupProgress 
+							isVisible={isProgressVisible} 
+							onComplete={handleProgressComplete}
+						/>
+					) : (
+						<TestButton 
+							onClick={handleTestClick} 
+							disabled={isProcessing}
+						>
+							{isProcessing ? '处理中...' : 'AI标签分类'}
+						</TestButton>
+					)}
 					<ActiveItemDescription />
 					<Command />
 				</RightContainer>
 			</FooterContainer>
-			
-			<TabGroupProgress 
-				isVisible={isProgressVisible} 
-				onComplete={handleProgressComplete}
-			/>
 		</>
 	)
 }

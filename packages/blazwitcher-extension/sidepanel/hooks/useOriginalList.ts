@@ -1,9 +1,9 @@
 import { useAtom } from 'jotai'
 import { useEffect } from 'react'
 import { MAIN_WINDOW } from '~shared/constants'
-import { originalListAtom, windowDataListAtom } from '~sidepanel/atom'
-import type { ListItemType, TabItemType, ExistingGroup, WindowData, UngroupedTab } from '~shared/types'
+import type { ExistingGroup, ListItemType, TabItemType, UngroupedTab, WindowData } from '~shared/types'
 import { ItemType } from '~shared/types'
+import { originalListAtom, windowDataListAtom } from '~sidepanel/atom'
 
 // 提取关键信息
 const extractExistingGroups = (data: ListItemType[]): ExistingGroup[] => {
@@ -110,14 +110,14 @@ export default function useOriginalList() {
 		const port = chrome.runtime.connect({ name: MAIN_WINDOW })
 		port.onMessage.addListener((processedList: ListItemType[]) => {
 			portConnectStatus = true
+			// TODO:看下是否要在background中处理processedList
+			const windowDataList = processDataForAI(processedList)
 			if (process.env.NODE_ENV !== 'production') {
 				console.log('processedList', processedList)
-
-				const windowDataList = processDataForAI(processedList)
 				console.log('windowDataList for AI:', windowDataList)
-				setWindowDataList(windowDataList)
 			}
 			setOriginalList(processedList)
+			setWindowDataList(windowDataList)
 		})
 
 		const postMessageToCloseWindow = () => {

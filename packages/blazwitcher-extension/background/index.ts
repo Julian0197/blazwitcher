@@ -57,27 +57,21 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 		let statistics = null
 		let addToExistingGroups = []
 		let createNewGroups = []
-		let processedGroups = new Set()
+		const processedGroups = new Set()
 
 		// 进度跟踪
 		let totalOperations = 0
 		let completedOperations = 0
-		let currentOperation = ''
 		let hasCompletedAllOperations = false
 
 		// 发送进度更新到前端
 		const sendProgressUpdate = (progress: any) => {
-			// 获取所有活动的标签页并发送消息
-			chrome.tabs.query({ active: true }, (tabs) => {
-				tabs.forEach((tab) => {
-					if (tab.id) {
-						chrome.tabs.sendMessage(tab.id, {
-							type: 'tabGroupProgressUpdate',
-							progress,
-						}).catch(() => {
-						})
-					}
-				})
+			// 发送消息到所有连接的端口（包括 sidepanel）
+			chrome.runtime.sendMessage({
+				type: 'tabGroupProgressUpdate',
+				progress,
+			}).catch(() => {
+				// 忽略错误，因为可能没有接收者
 			})
 		}
 
@@ -85,12 +79,11 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 		const checkAndSendCompletion = () => {
 			if (!hasCompletedAllOperations && completedOperations >= totalOperations) {
 				hasCompletedAllOperations = true
-				
+
 				// 发送完成进度
 				sendProgressUpdate({
-					total: totalOperations,
-					completed: totalOperations,
-					currentOperation: '标签页分组完成！',
+					totalOperations,
+					completedOperations,
 					percentage: 100,
 				})
 			}
@@ -108,13 +101,14 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 							// totalOperations 应该是所有需要处理的标签页数量
 							// 每个标签页被添加到现有组或创建新组都算一个操作
 							totalOperations = (statsData.tabsToAddToExisting || 0) + (statsData.tabsToCreateNewGroups || 0)
-							console.log(`📊 统计信息: 添加现有组 ${statsData.tabsToAddToExisting} 个, 创建新组 ${statsData.tabsToCreateNewGroups} 个`)
-							
+							console.log(
+								`📊 统计信息: 添加现有组 ${statsData.tabsToAddToExisting} 个, 创建新组 ${statsData.tabsToCreateNewGroups} 个`
+							)
+
 							// 发送初始进度
 							sendProgressUpdate({
-								total: totalOperations,
-								completed: 0,
-								currentOperation: '开始处理标签页分组...',
+								totalOperations,
+								completedOperations: 0,
 								percentage: 0,
 							})
 						} catch (e) {
@@ -137,21 +131,19 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 										if (!processedGroups.has(key)) {
 											processedGroups.add(key)
 											console.log(`🚀 立即执行: 将tab ${item.tabId} 添加到组 ${item.groupId}`)
-											
+
 											// 执行Chrome API调用
 											try {
 												await chrome.tabs.group({ tabIds: [item.tabId], groupId: item.groupId })
 												completedOperations++
-												
+
 												// 更新进度
-												currentOperation = `正在将标签页 ${item.tabId} 添加到现有组...`
 												sendProgressUpdate({
-													total: totalOperations,
-													completed: completedOperations,
-													currentOperation,
+													totalOperations,
+													completedOperations,
 													percentage: Math.round((completedOperations / totalOperations) * 100),
 												})
-												
+
 												console.log(`✅ 成功将tab ${item.tabId} 添加到组 ${item.groupId}`)
 											} catch (error) {
 												console.error(`❌ 添加tab到组失败: ${item.tabId} -> ${item.groupId}`, error)
@@ -177,41 +169,44 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 					if (afterColon === -1) {
 						return // 还没有找到数组开始，继续等待
 					}
-					
+
 					// 状态机：找到匹配的数组结束位置 ']'
-					let braceCount = 0    // 跟踪大括号 {} 的嵌套层级
-					let bracketCount = 0  // 跟踪方括号 [] 的嵌套层级
-					let inString = false  // 是否在字符串内部
+					let braceCount = 0 // 跟踪大括号 {} 的嵌套层级
+					let bracketCount = 0 // 跟踪方括号 [] 的嵌套层级
+					let inString = false // 是否在字符串内部
 					let escapeNext = false // 下一个字符是否被转义
-					let endIndex = -1     // 找到的结束位置
-					
+					let endIndex = -1 // 找到的结束位置
+
 					// 从数组开始位置遍历到缓冲区末尾
 					for (let i = afterColon; i < jsonBuffer.length; i++) {
 						const char = jsonBuffer[i]
-						
+
 						// 处理转义字符
 						if (escapeNext) {
 							escapeNext = false
 							continue // 跳过被转义的字符
 						}
-						
+
 						// 检测转义字符
 						if (char === '\\') {
 							escapeNext = true
 							continue
 						}
-						
+
 						// 处理字符串边界（忽略转义引号）
 						if (char === '"' && !escapeNext) {
 							inString = !inString // 切换字符串状态
 							continue
 						}
-						
+
 						// 只在非字符串状态下处理括号
 						if (!inString) {
-							if (char === '{') braceCount++      // 进入对象
-							else if (char === '}') braceCount-- // 退出对象
-							else if (char === '[') bracketCount++ // 进入数组
+							if (char === '{')
+								braceCount++ // 进入对象
+							else if (char === '}')
+								braceCount-- // 退出对象
+							else if (char === '[')
+								bracketCount++ // 进入数组
 							else if (char === ']') {
 								bracketCount-- // 退出数组
 								// 如果回到了最外层数组，找到了结束位置
@@ -222,14 +217,14 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 							}
 						}
 					}
-					
+
 					// 如果找到了完整的数组
 					if (endIndex !== -1) {
 						try {
 							// 提取完整的数组字符串
 							const newGroupsStr = jsonBuffer.substring(afterColon, endIndex)
 							const newGroupsData = JSON.parse(newGroupsStr)
-							
+
 							// 只处理新的条目（避免重复处理）
 							if (newGroupsData.length !== createNewGroups.length) {
 								console.log(`🔄 发现新的createNewGroups数据，数量: ${newGroupsData.length}`)
@@ -238,7 +233,9 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 										const key = `new_${group.groupTitle}_${group.tabIds.join('_')}`
 										if (!processedGroups.has(key)) {
 											processedGroups.add(key)
-											console.log(`🚀 立即执行: 创建新组 "${group.groupTitle}" (${group.groupColor}) 包含tabs ${group.tabIds.join(', ')}`)
+											console.log(
+												`🚀 立即执行: 创建新组 "${group.groupTitle}" (${group.groupColor}) 包含tabs ${group.tabIds.join(', ')}`
+											)
 
 											try {
 												// 1. 创建新的 tab group
@@ -254,16 +251,14 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 
 												// 增加这个组中所有标签页的数量
 												completedOperations += group.tabIds.length
-												
+
 												// 更新进度
-												currentOperation = `正在创建新组 "${group.groupTitle}" (${group.tabIds.length} 个标签页)...`
 												sendProgressUpdate({
-													total: totalOperations,
-													completed: completedOperations,
-													currentOperation,
+													totalOperations,
+													completedOperations,
 													percentage: Math.round((completedOperations / totalOperations) * 100),
 												})
-												
+
 												console.log(`✅ 成功创建新组: ${group.groupTitle}, ID: ${groupId}`)
 											} catch (error) {
 												console.error(`❌ 创建新组失败: ${group.groupTitle}`, error)
@@ -279,10 +274,7 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 						}
 					}
 				}
-
-			} catch (error) {
-				// 解析错误，继续等待更多数据
-			}
+			} catch (error) {}
 		}
 
 		let eventCount = 0
@@ -292,18 +284,17 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 			if (done) break
 
 			const chunk = decoder.decode(value)
-			const lines = chunk.split('\n').filter(line => line.trim())
+			const lines = chunk.split('\n').filter((line) => line.trim())
 
 			for (const line of lines) {
 				if (line.startsWith('data: ')) {
 					const data = line.slice(6)
 					eventCount++
-					
+
 					if (data === '[DONE]') {
-						console.log(`📡 收到 [DONE] 事件，总共 ${eventCount} 个事件`)
 						break
 					}
-					
+
 					try {
 						const parsed = JSON.parse(data)
 						const content = parsed.choices?.[0]?.delta?.content || ''
@@ -311,7 +302,7 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 						if (content) {
 							jsonBuffer += content
 
-							// 每10个chunk处理一次，提高实时性
+							// 每10个chunk处理一次
 							if (eventCount % 10 === 0) {
 								await processStreamData(jsonBuffer)
 							}
@@ -323,19 +314,7 @@ async function handleTabGroupOperationsStream(currentWindowData: any) {
 			}
 		}
 
-		// 最终处理，确保不遗漏
 		await processStreamData(jsonBuffer)
-
-		// 如果还没有发送完成进度，在这里发送
-		if (!hasCompletedAllOperations) {
-			sendProgressUpdate({
-				total: totalOperations,
-				completed: totalOperations,
-				currentOperation: '标签页分组完成！',
-				percentage: 100,
-			})
-		}
-
 		return { success: true, message: 'Tab group 操作完成' }
 	} catch (error) {
 		console.error('流式处理 tabgroup 操作失败:', error)
@@ -364,7 +343,6 @@ async function handleTabGroupOperations(categorizeResult: any) {
 							title: group.groupTitle,
 							color: group.groupColor as any,
 						})
-
 					} catch (error) {
 						console.error(`创建新组失败: ${group.groupTitle}`, error)
 					}
